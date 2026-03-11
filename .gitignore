@@ -1,0 +1,11 @@
+*.asv
+*.fig
+*.png
+*.jpg
+*.jpeg
+*.pdf
+*.mat
+*.mex*
+slprj/
+work/
+codegen/
