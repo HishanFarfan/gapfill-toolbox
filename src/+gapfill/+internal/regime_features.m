@@ -19,42 +19,51 @@ function info = regime_features(x)
         return;
     end
 
-    windowLengths = unique(max(8, round([n / 20, n / 12, n / 8])));
+    windowLengths = unique(max(16, round([n / 10, n / 8, n / 6])));
     scaleScores = NaN(numel(windowLengths), 1);
     changeCounts = NaN(numel(windowLengths), 1);
     meanScores = NaN(numel(windowLengths), 1);
     varScores = NaN(numel(windowLengths), 1);
     roughScores = NaN(numel(windowLengths), 1);
+    heterogeneityScores = NaN(numel(windowLengths), 1);
 
     seriesScale = max(std(x), eps);
     diffScale = max(std(diff(x)), eps);
 
     for i = 1:numel(windowLengths)
         w = windowLengths(i);
-        if n < 2 * w + 2
+        nBlocks = floor(n / w);
+        if nBlocks < 3
             continue;
         end
 
-        rollMean = movmean(x, w, 'Endpoints', 'discard');
-        rollStd = movstd(x, w, 0, 'Endpoints', 'discard');
-        rollDiff = movstd(diff(x), max(w - 1, 2), 0, 'Endpoints', 'discard');
+        usable = x(1:nBlocks * w);
+        blocks = reshape(usable, w, nBlocks);
+        blockMeans = mean(blocks, 1).';
+        blockStds = std(blocks, 0, 1).';
+        blockRough = NaN(nBlocks, 1);
+        for b = 1:nBlocks
+            blockRough(b) = std(diff(blocks(:, b)));
+        end
 
-        meanDelta = abs(diff(rollMean));
-        stdDelta = abs(diff(rollStd));
-        roughDelta = abs(diff(rollDiff));
+        meanDelta = abs(diff(blockMeans));
+        stdDelta = abs(diff(blockStds));
+        roughDelta = abs(diff(blockRough));
 
         meanScore = mean(meanDelta) / seriesScale;
         varScore = mean(stdDelta) / seriesScale;
         roughScore = mean(roughDelta) / diffScale;
+        heterogeneityScore = std(blockMeans) / seriesScale + 0.5 * std(blockStds) / seriesScale;
 
-        combined = normalize_vector(meanDelta) + normalize_vector(stdDelta) + normalize_vector(roughDelta);
-        threshold = mean(combined) + std(combined);
+        combined = meanDelta / seriesScale + 0.5 * stdDelta / seriesScale;
+        threshold = mean(combined) + 0.75 * std(combined);
         changeCounts(i) = sum(combined > threshold);
 
         meanScores(i) = meanScore;
         varScores(i) = varScore;
         roughScores(i) = roughScore;
-        scaleScores(i) = 0.45 * meanScore + 0.30 * varScore + 0.25 * roughScore;
+        heterogeneityScores(i) = heterogeneityScore;
+        scaleScores(i) = 0.35 * meanScore + 0.20 * varScore + 0.15 * roughScore + 0.30 * heterogeneityScore;
     end
 
     info.window_lengths = windowLengths(:);
@@ -64,20 +73,5 @@ function info = regime_features(x)
     info.roughness_shift_score = mean(roughScores, 'omitnan');
     info.multiscale_score = std(scaleScores, 'omitnan');
     info.estimated_change_count = round(mean(changeCounts, 'omitnan'));
-    info.heterogeneity_score = info.change_score + 0.5 * info.multiscale_score;
-end
-
-function y = normalize_vector(x)
-    x = x(:);
-    if isempty(x) || all(x == 0)
-        y = zeros(size(x));
-        return;
-    end
-    xmin = min(x);
-    xmax = max(x);
-    if xmax == xmin
-        y = zeros(size(x));
-    else
-        y = (x - xmin) / (xmax - xmin);
-    end
+    info.heterogeneity_score = mean(heterogeneityScores, 'omitnan');
 end

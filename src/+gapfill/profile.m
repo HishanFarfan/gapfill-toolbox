@@ -62,6 +62,9 @@ function report = profile(data, varargin)
         stats.roughness = NaN;
         stats.roughness_ratio = NaN;
         stats.burstiness_index = NaN;
+        stats.hurst_exponent = NaN;
+        stats.hurst_effective = NaN;
+        stats.hurst_rsq = NaN;
         stats.acf = NaN(opts.MaxLag + 1, 1);
         stats.acf_lags = (0:opts.MaxLag).';
         stats.persistence_lag1 = NaN;
@@ -81,6 +84,7 @@ function report = profile(data, varargin)
         stats.regime_change_count = NaN;
         stats.regime_heterogeneity_score = NaN;
         report.regime = struct;
+        report.hurst = struct;
     else
         stats.mean = mean(xValid);
         stats.std = std(xValid);
@@ -107,6 +111,12 @@ function report = profile(data, varargin)
         stats.trend_intercept = trend.intercept;
         stats.trend_rsq = trend.rsq;
         stats.trend_strength = trend.strength;
+
+        hurst = gapfill.internal.dfa_hurst(xValid);
+        stats.hurst_exponent = hurst.value;
+        stats.hurst_effective = min(max(hurst.value, 0), 1);
+        stats.hurst_rsq = hurst.rsq;
+        report.hurst = hurst;
 
         stats.acf = gapfill.internal.autocorrelation(xValid, opts.MaxLag);
         stats.acf_lags = (0:numel(stats.acf) - 1).';

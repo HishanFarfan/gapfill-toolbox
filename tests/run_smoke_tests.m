@@ -17,6 +17,8 @@ function run_smoke_tests()
     assert(isfield(profileReport.stats, "spectral_entropy"));
     assert(isfield(profileReport.stats, "seasonality_strength"));
     assert(isfield(profileReport.stats, "regime_change_score"));
+    assert(isfield(profileReport.stats, "hurst_exponent"));
+    assert(isfield(profileReport.stats, "hurst_effective"));
 
     evaluation = gapfill.evaluate_methods(x, "NumReplicates", 4, "Seed", 11);
     assert(istable(evaluation.results));
@@ -35,6 +37,11 @@ function run_smoke_tests()
     xSeasonal = sin(2 * pi * t / 48) + 0.25 * sin(2 * pi * t / 12) + 0.1 * randn(size(t));
     pSeasonal = gapfill.profile(xSeasonal);
     assert(strcmp(pSeasonal.classification.primary_label, 'seasonal'));
+
+    xPersistent = filter(1, [1, -0.88], 0.10 * randn(900, 1));
+    pPersistent = gapfill.profile(xPersistent);
+    assert(pPersistent.stats.hurst_effective > 0.55);
+    assert(strcmp(pPersistent.classification.primary_label, 'persistent'));
 
     xRegime = [0.1 * randn(240, 1); 3 + filter(1, [1, -0.8], randn(240, 1)); -2 + 0.5 * randn(240, 1)];
     pRegime = gapfill.profile(xRegime);

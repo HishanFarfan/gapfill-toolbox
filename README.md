@@ -7,7 +7,8 @@ MATLAB toolbox for exploratory analysis of missing-data patterns and automatic g
 Current scope:
 
 - Profile missing-data structure and basic time-series diagnostics
-- Detect coarse series regimes: `smooth`, `persistent`, `seasonal`, `bursty`
+- Estimate Hurst exponent with a DFA-based internal estimator
+- Detect coarse series regimes: `smooth`, `persistent`, `antipersistent`, `seasonal`, `bursty`
 - Detect regime changes and multiscale heterogeneity
 - Score interpolation candidates with blocked cross-validation
 - Penalize methods that distort spectrum, trend, or seasonal structure
@@ -87,14 +88,26 @@ What happens here:
 - the selector reduces aggressive interpolation across long gaps
 - rolling/local AR backends preserve local dynamics better than a single smooth interpolant
 
+### 3. Persistent-memory signal with Hurst exponent above 0.5
+
+The toolbox now estimates H explicitly with a simple DFA-based routine. When `H > 0.5`, persistence contributes directly to the class decision and increases the weight of correlation and spectral preservation.
+
+![Persistent case](docs/assets/readme_case_persistent.png)
+
+What happens here:
+
+- the profiler estimates an effective Hurst exponent above `0.5`
+- persistence is treated as evidence of long-memory behavior, not just high lag-1 correlation
+- the selector becomes more conservative with interpolation and gives more weight to spectral/ACF preservation
+
 ## What The Automatic Analysis Does
 
 `gapfill.auto_fill` runs a staged analysis before filling anything:
 
 1. Profiles the observed part of the series.
-   It measures missing-data geometry, trend strength, persistence, seasonality, spectral shape, burstiness, and regime-change indicators.
+   It measures missing-data geometry, trend strength, persistence, Hurst exponent, seasonality, spectral shape, burstiness, and regime-change indicators.
 2. Classifies the series.
-   The current coarse labels are `smooth`, `persistent`, `seasonal`, `bursty`, and `regime_switching`.
+   The current coarse labels are `smooth`, `persistent`, `antipersistent`, `seasonal`, `bursty`, and `regime_switching`.
 3. Benchmarks interpolation candidates.
    It hides observed blocks on purpose, reconstructs them, and scores each method using pointwise error plus penalties for structure distortion.
 4. Builds an adaptive filling plan.
@@ -115,7 +128,8 @@ The goal is to keep the library inspectable and statistically defensible before 
 The method selector is now adaptive:
 
 - `smooth`: favors shape-preserving interpolation and larger interpolation spans
-- `persistent`: emphasizes autocorrelation and spectral preservation
+- `persistent`: emphasizes autocorrelation, Hurst-aware memory, and spectral preservation
+- `antipersistent`: is stricter with long interpolation spans and favors more local reconstruction
 - `seasonal`: emphasizes seasonal consistency and trend preservation
 - `bursty`: is more conservative with long interpolation spans
 - `regime_switching`: reduces aggressive interpolation and leans more on local adaptive models

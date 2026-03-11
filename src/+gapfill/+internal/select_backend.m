@@ -12,12 +12,20 @@ function backend = select_backend(classification, availableMethods, customWeight
             rollingARMaxGap = 48;
             localARMaxGap = 200;
         case 'persistent'
-            defaultWeights = [0.22, 0.08, 0.22, 0.10, 0.22, 0.12, 0.04];
+            defaultWeights = [0.18, 0.06, 0.25, 0.10, 0.26, 0.11, 0.04];
             preferred = {'pchip', 'makima', 'linear', 'spline'};
-            gapScale = 1.00;
-            gapCap = 28;
+            gapScale = 0.90;
+            gapCap = 22;
             seasonalGapFactor = 1.00;
-            rollingARMaxGap = 72;
+            rollingARMaxGap = 96;
+            localARMaxGap = 220;
+        case 'antipersistent'
+            defaultWeights = [0.24, 0.10, 0.22, 0.16, 0.16, 0.08, 0.04];
+            preferred = {'linear', 'pchip', 'makima', 'spline'};
+            gapScale = 0.75;
+            gapCap = 14;
+            seasonalGapFactor = 0.75;
+            rollingARMaxGap = 40;
             localARMaxGap = 200;
         case 'seasonal'
             defaultWeights = [0.18, 0.06, 0.12, 0.08, 0.16, 0.16, 0.24];

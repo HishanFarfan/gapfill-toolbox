@@ -11,6 +11,7 @@ function render_readme_figures()
     end
 
     renderSeasonalFigure(fullfile(assetDir, "readme_case_seasonal.png"));
+    renderPersistentFigure(fullfile(assetDir, "readme_case_persistent.png"));
     renderRegimeFigure(fullfile(assetDir, "readme_case_regime.png"));
 end
 
@@ -84,6 +85,47 @@ function renderRegimeFigure(outputPath)
     nexttile
     bar(categorical(report.evaluation.Method), report.evaluation{:, "Score"}, ...
         "FaceColor", [0.1 0.6 0.45]);
+    ylabel("Score");
+    title(sprintf("Scoring summary | rolling AR fills=%d | local AR fills=%d", ...
+        report.rolling_ar.n_filled_gaps, report.ar.n_filled_gaps));
+    grid on
+
+    exportgraphics(fig, outputPath, "Resolution", 160);
+    close(fig);
+end
+
+function renderPersistentFigure(outputPath)
+    rng(33);
+    n = 900;
+    t = (1:n).';
+    x = filter(1, [1, -0.88], 0.10 * randn(n, 1));
+    x = x - mean(x);
+    x = x / std(x);
+    xMissing = x;
+    xMissing(120:132) = NaN;
+    xMissing(310:340) = NaN;
+    xMissing(610:628) = NaN;
+
+    [xFilled, report] = gapfill.auto_fill(xMissing, "NumReplicates", 6, "Seed", 33);
+
+    fig = figure("Visible", "off", "Color", "w", "Position", [100 100 1100 640]);
+    tiledlayout(2, 1, "Padding", "compact", "TileSpacing", "compact");
+
+    nexttile
+    plot(t, x, "Color", [0.82 0.82 0.82], "LineWidth", 1.0);
+    hold on
+    plot(t, xMissing, "k.", "MarkerSize", 6);
+    plot(t, xFilled, "Color", [0.55 0.2 0.75], "LineWidth", 1.4);
+    title(sprintf("Persistent-memory case | class=%s | H=%.2f", ...
+        report.strategy.series_class, report.profile.stats.hurst_effective));
+    legend("Original", "Observed", "Filled", "Location", "best");
+    xlabel("Index");
+    ylabel("Value");
+    grid on
+
+    nexttile
+    bar(categorical(report.evaluation.Method), report.evaluation{:, "Score"}, ...
+        "FaceColor", [0.45 0.25 0.75]);
     ylabel("Score");
     title(sprintf("Scoring summary | rolling AR fills=%d | local AR fills=%d", ...
         report.rolling_ar.n_filled_gaps, report.ar.n_filled_gaps));
