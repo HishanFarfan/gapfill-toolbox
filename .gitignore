@@ -9,3 +9,4 @@
 slprj/
 work/
 codegen/
+!docs/assets/*.png

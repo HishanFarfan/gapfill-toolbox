@@ -61,6 +61,32 @@ x(400:430) = NaN;
 disp(report.strategy)
 ```
 
+## Visual Examples
+
+### 1. Seasonal signal with medium gaps
+
+The toolbox identifies the series as `seasonal`, keeps interpolation conservative, and enables the seasonal-template backend before falling back to AR-based fillers.
+
+![Seasonal case](docs/assets/readme_case_seasonal.png)
+
+What happens here:
+
+- the profiler detects strong periodic structure and a stable dominant period
+- method ranking penalizes seasonal distortion, not only pointwise error
+- the filling plan uses interpolation for short gaps and a seasonal template for larger internal gaps
+
+### 2. Regime-switching signal with structural breaks
+
+The toolbox identifies this as `regime_switching`, lowers the allowed interpolation span, and leans on local models instead of smoothing across transitions.
+
+![Regime-switching case](docs/assets/readme_case_regime.png)
+
+What happens here:
+
+- the profiler detects heterogeneity across windows and change-like behavior
+- the selector reduces aggressive interpolation across long gaps
+- rolling/local AR backends preserve local dynamics better than a single smooth interpolant
+
 ## What The Automatic Analysis Does
 
 `gapfill.auto_fill` runs a staged analysis before filling anything:
@@ -106,6 +132,12 @@ Comparative example with seasonal and regime-switching cases:
 
 ```matlab
 run("examples/compare_strategies.m")
+```
+
+Generate the README images again:
+
+```matlab
+run("examples/render_readme_figures.m")
 ```
 
 ## Smoke Test
