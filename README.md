@@ -12,7 +12,9 @@ Current scope:
 - Detect regime changes and multiscale heterogeneity
 - Score interpolation candidates with blocked cross-validation
 - Penalize methods that distort spectrum, trend, or seasonal structure
+- Penalize methods that look structurally wrong inside hidden gaps
 - Fill short gaps with the best interpolation method
+- Fill repeatable gaps by matching left/right context against observed patches from the same series
 - Fill seasonal gaps with a trend + seasonal-template backend when appropriate
 - Fill medium gaps with a deterministic rolling-AR backend
 - Fill longer internal gaps with local autoregressive simulation
@@ -40,13 +42,15 @@ flowchart TD
     C --> D["Evaluate Interpolation Methods<br/>blocked CV + structural penalties"]
     D --> E["Choose Adaptive Backend<br/>weights, interpolation span, backends"]
     E --> F["Short Gaps<br/>best interpolation"]
-    E --> G["Seasonal Gaps<br/>trend + seasonal template"]
-    E --> H["Medium Gaps<br/>rolling AR"]
-    E --> I["Difficult Gaps<br/>local bidirectional AR"]
+    E --> G["Context-Matched Gaps<br/>patch search inside the same series"]
+    E --> H["Seasonal Gaps<br/>trend + seasonal template"]
+    E --> I["Medium Gaps<br/>rolling AR"]
+    E --> K["Difficult Gaps<br/>local bidirectional AR"]
     F --> J["Filled Series + Report"]
     G --> J
     H --> J
     I --> J
+    K --> J
 ```
 
 ## Quick Start
@@ -64,9 +68,17 @@ disp(report.strategy)
 
 ## Visual Examples
 
+In the figures below:
+
+- gray: original signal
+- black: observed samples
+- red: filled values only inside the amputated gaps
+
+These examples are useful for inspecting behavior, but they should be read together with the gap-level metrics. A low global error can still hide a visually implausible reconstruction inside the missing interval.
+
 ### 1. Seasonal signal with medium gaps
 
-The toolbox identifies the series as `seasonal`, keeps interpolation conservative, and enables the seasonal-template backend before falling back to AR-based fillers.
+The toolbox identifies the series as `seasonal`, keeps interpolation conservative, and now tries context-matched patches before any model-based fallback. In this specific case, the repeated local structure is strong enough that the context backend resolves the larger gaps directly.
 
 ![Seasonal case](docs/assets/readme_case_seasonal.png)
 
@@ -74,11 +86,12 @@ What happens here:
 
 - the profiler detects strong periodic structure and a stable dominant period
 - method ranking penalizes seasonal distortion, not only pointwise error
-- the filling plan uses interpolation for short gaps and a seasonal template for larger internal gaps
+- the filling plan uses interpolation for short gaps and context-matched patches for the larger internal gaps
+- the seasonal backend stays available, but it does not need to fire when the patch match is strong enough
 
 ### 2. Regime-switching signal with structural breaks
 
-The toolbox identifies this as `regime_switching`, lowers the allowed interpolation span, and leans on local models instead of smoothing across transitions.
+The toolbox identifies this as `regime_switching`, lowers the allowed interpolation span, and tests context matching before falling back to local models. In this case the neighborhood match is not reliable enough, so the backend rejects the patch candidates and lets the rolling AR layer handle the gaps.
 
 ![Regime-switching case](docs/assets/readme_case_regime.png)
 
@@ -86,6 +99,7 @@ What happens here:
 
 - the profiler detects heterogeneity across windows and change-like behavior
 - the selector reduces aggressive interpolation across long gaps
+- the context-match backend is available, but it only fills if it finds a genuinely compatible left/right neighborhood elsewhere in the series
 - rolling/local AR backends preserve local dynamics better than a single smooth interpolant
 
 ### 3. Persistent-memory signal with Hurst exponent above 0.5
@@ -99,6 +113,28 @@ What happens here:
 - the profiler estimates an effective Hurst exponent above `0.5`
 - persistence is treated as evidence of long-memory behavior, not just high lag-1 correlation
 - the selector becomes more conservative with interpolation and gives more weight to spectral/ACF preservation
+- context-matched patches are tested first, but the backend backs off if the series does not contain a trustworthy repeated neighborhood
+
+## Gap-Level Visual Metrics
+
+The toolbox now measures similarity inside each hidden validation gap, not only over the observed series as a whole.
+
+Current structural metrics include:
+
+- `ShapeDistance`: penalizes mismatch in normalized shape
+- `DerivativeDistance`: penalizes mismatch in first-order local changes
+- `CurvatureDistance`: penalizes mismatch in second-order bending
+- `TVDistance`: penalizes mismatch in total variation
+- `TurningPointDistance`: penalizes mismatch in number of local direction changes
+- `VisualDistance`: weighted summary of the previous metrics
+
+Why this matters:
+
+- a fill can have decent `RMSE` and still look obviously wrong
+- a smooth bridge across the gap may be numerically acceptable but structurally implausible
+- these metrics try to capture the kind of failure that becomes obvious in plots
+
+At the moment, the toolbox uses these metrics during method ranking, but they should still be treated as an evolving part of the evaluation layer.
 
 ## What The Automatic Analysis Does
 
@@ -113,7 +149,12 @@ What happens here:
 4. Builds an adaptive filling plan.
    The chosen class modifies interpolation span, metric weights, and which backends are enabled.
 5. Fills by layers.
-   Short gaps are interpolated first, then seasonal gaps, then rolling AR, and finally local AR for harder residual gaps.
+   Short gaps are interpolated first, then context-matched patches are attempted when the neighborhood match is strong enough, then seasonal gaps, then rolling AR, and finally local AR for harder residual gaps.
+
+The evaluation layer now checks two different questions:
+
+- does the fill reduce numerical error?
+- does the fill look like a plausible continuation of the hidden segment?
 
 ## Design Notes
 
@@ -169,6 +210,9 @@ run("tests/run_smoke_tests.m")
 - `report.evaluation`: method comparison table
 - `report.strategy`: selected class, interpolation policy, and enabled backends
 - `report.seasonal`, `report.rolling_ar`, `report.ar`: backend-level fill summaries
+- `report.context_match`: patch-match fill summary
+
+`report.evaluation` now also includes gap-level structural metrics such as `ShapeDistance`, `DerivativeDistance`, `CurvatureDistance`, `TVDistance`, `TurningPointDistance`, and `VisualDistance`.
 
 ## Current Limitations
 
@@ -176,3 +220,5 @@ run("tests/run_smoke_tests.m")
 - The seasonal backend assumes approximately stable periodicity.
 - The AR backends are local and univariate; they do not use exogenous covariates.
 - Extremely long edge gaps still require care or stronger domain assumptions.
+- Some fills can still look visually implausible even when standard numerical metrics appear acceptable.
+- The visual metrics are a first attempt to capture this problem; they are not yet a final quality criterion.

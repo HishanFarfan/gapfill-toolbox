@@ -24,6 +24,7 @@ function run_smoke_tests()
     assert(istable(evaluation.results));
     assert(~isempty(evaluation.best_method));
     assert(any(strcmp(evaluation.results.Properties.VariableNames, 'SpectralDistance')));
+    assert(any(strcmp(evaluation.results.Properties.VariableNames, 'VisualDistance')));
     assert(isfield(evaluation, "backend"));
 
     [xFilled, report] = gapfill.auto_fill(x, "NumReplicates", 4, "Seed", 11);
@@ -31,6 +32,14 @@ function run_smoke_tests()
     assert(sum(isnan(xFilled)) <= sum(isnan(x)));
     assert(isfield(report, "strategy"));
     assert(isfield(report.strategy, "series_class"));
+    assert(isfield(report.strategy, "roughness_bridge_enabled"));
+    assert(isfield(report, "roughness_bridge"));
+    assert(isfield(report.strategy, "wavelet_context_enabled"));
+    assert(isfield(report.strategy, "multiscale_context_enabled"));
+    assert(isfield(report.strategy, "context_match_enabled"));
+    assert(isfield(report, "wavelet_context"));
+    assert(isfield(report, "multiscale_context"));
+    assert(isfield(report, "context_match"));
     assert(isfield(report, "rolling_ar"));
 
     t = (1:720).';
@@ -46,6 +55,13 @@ function run_smoke_tests()
     xRegime = [0.1 * randn(240, 1); 3 + filter(1, [1, -0.8], randn(240, 1)); -2 + 0.5 * randn(240, 1)];
     pRegime = gapfill.profile(xRegime);
     assert(pRegime.classification.flags.has_regime_changes);
+
+    basePattern = [sin((1:18).' / 2); 0.4 * cos((1:18).' / 3)];
+    xPatch = repmat(basePattern, 8, 1) + 0.04 * randn(288, 1);
+    xPatch(109:126) = NaN;
+    [xPatchFilled, patchReport] = gapfill.auto_fill(xPatch, "NumReplicates", 3, "Seed", 13);
+    assert(~all(isnan(xPatchFilled(109:126))));
+    assert(isfield(patchReport, "context_match"));
 
     fprintf("All gapfill smoke tests passed.\n");
 end

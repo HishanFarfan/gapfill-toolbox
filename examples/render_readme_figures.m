@@ -33,11 +33,12 @@ function renderSeasonalFigure(outputPath)
     nexttile
     plot(t, x, "Color", [0.82 0.82 0.82], "LineWidth", 1.0);
     hold on
-    plot(t, xMissing, "k.", "MarkerSize", 6);
-    plot(t, xFilled, "Color", [0.85 0.2 0.2], "LineWidth", 1.4);
+    highlightGapRegions(t, x, isnan(xMissing), [1.0 0.85 0.85], 0.38);
+    plot(t(~isnan(xMissing)), xMissing(~isnan(xMissing)), "k.", "MarkerSize", 5);
+    plotFilledSegments(t, xFilled, isnan(xMissing), [0.82 0.12 0.12], 2.4);
     title(sprintf("Seasonal case | class=%s | method=%s", ...
         report.strategy.series_class, report.strategy.interpolation_method));
-    legend("Original", "Observed", "Filled", "Location", "best");
+    legend("Original", "Observed", "Filled only", "Location", "best");
     xlabel("Index");
     ylabel("Value");
     grid on
@@ -46,7 +47,8 @@ function renderSeasonalFigure(outputPath)
     bar(categorical(report.evaluation.Method), report.evaluation{:, "Score"}, ...
         "FaceColor", [0.18 0.45 0.75]);
     ylabel("Score");
-    title(sprintf("Scoring summary | seasonal backend fills=%d", report.seasonal.n_filled_gaps));
+    title(sprintf("Scoring summary | context fills=%d | seasonal fills=%d", ...
+        report.context_match.n_filled_gaps, report.seasonal.n_filled_gaps));
     grid on
 
     exportgraphics(fig, outputPath, "Resolution", 160);
@@ -73,11 +75,12 @@ function renderRegimeFigure(outputPath)
     nexttile
     plot(t, x, "Color", [0.82 0.82 0.82], "LineWidth", 1.0);
     hold on
-    plot(t, xMissing, "k.", "MarkerSize", 6);
-    plot(t, xFilled, "Color", [0.15 0.4 0.85], "LineWidth", 1.4);
+    highlightGapRegions(t, x, isnan(xMissing), [1.0 0.85 0.85], 0.38);
+    plot(t(~isnan(xMissing)), xMissing(~isnan(xMissing)), "k.", "MarkerSize", 5);
+    plotFilledSegments(t, xFilled, isnan(xMissing), [0.82 0.12 0.12], 2.4);
     title(sprintf("Regime-switching case | class=%s | method=%s", ...
         report.strategy.series_class, report.strategy.interpolation_method));
-    legend("Original", "Observed", "Filled", "Location", "best");
+    legend("Original", "Observed", "Filled only", "Location", "best");
     xlabel("Index");
     ylabel("Value");
     grid on
@@ -86,8 +89,8 @@ function renderRegimeFigure(outputPath)
     bar(categorical(report.evaluation.Method), report.evaluation{:, "Score"}, ...
         "FaceColor", [0.1 0.6 0.45]);
     ylabel("Score");
-    title(sprintf("Scoring summary | rolling AR fills=%d | local AR fills=%d", ...
-        report.rolling_ar.n_filled_gaps, report.ar.n_filled_gaps));
+    title(sprintf("Scoring summary | context fills=%d | rolling AR fills=%d | local AR fills=%d", ...
+        report.context_match.n_filled_gaps, report.rolling_ar.n_filled_gaps, report.ar.n_filled_gaps));
     grid on
 
     exportgraphics(fig, outputPath, "Resolution", 160);
@@ -114,11 +117,12 @@ function renderPersistentFigure(outputPath)
     nexttile
     plot(t, x, "Color", [0.82 0.82 0.82], "LineWidth", 1.0);
     hold on
-    plot(t, xMissing, "k.", "MarkerSize", 6);
-    plot(t, xFilled, "Color", [0.55 0.2 0.75], "LineWidth", 1.4);
+    highlightGapRegions(t, x, isnan(xMissing), [1.0 0.85 0.85], 0.38);
+    plot(t(~isnan(xMissing)), xMissing(~isnan(xMissing)), "k.", "MarkerSize", 5);
+    plotFilledSegments(t, xFilled, isnan(xMissing), [0.82 0.12 0.12], 2.4);
     title(sprintf("Persistent-memory case | class=%s | H=%.2f", ...
         report.strategy.series_class, report.profile.stats.hurst_effective));
-    legend("Original", "Observed", "Filled", "Location", "best");
+    legend("Original", "Observed", "Filled only", "Location", "best");
     xlabel("Index");
     ylabel("Value");
     grid on
@@ -127,10 +131,30 @@ function renderPersistentFigure(outputPath)
     bar(categorical(report.evaluation.Method), report.evaluation{:, "Score"}, ...
         "FaceColor", [0.45 0.25 0.75]);
     ylabel("Score");
-    title(sprintf("Scoring summary | rolling AR fills=%d | local AR fills=%d", ...
-        report.rolling_ar.n_filled_gaps, report.ar.n_filled_gaps));
+    title(sprintf("Scoring summary | context fills=%d | rolling AR fills=%d | local AR fills=%d", ...
+        report.context_match.n_filled_gaps, report.rolling_ar.n_filled_gaps, report.ar.n_filled_gaps));
     grid on
 
     exportgraphics(fig, outputPath, "Resolution", 160);
     close(fig);
+end
+
+function highlightGapRegions(t, yReference, fillMask, colorValue, faceAlpha)
+    [gapStarts, gapEnds, ~] = gapfill.internal.find_gaps(fillMask);
+    yMin = min(yReference) - 0.05 * range(yReference);
+    yMax = max(yReference) + 0.05 * range(yReference);
+    for i = 1:numel(gapStarts)
+        x0 = t(gapStarts(i));
+        x1 = t(gapEnds(i));
+        patch([x0 x1 x1 x0], [yMin yMin yMax yMax], colorValue, ...
+            "FaceAlpha", faceAlpha, "EdgeColor", "none");
+    end
+end
+
+function plotFilledSegments(t, xFilled, fillMask, colorValue, lineWidth)
+    [gapStarts, gapEnds, ~] = gapfill.internal.find_gaps(fillMask);
+    for i = 1:numel(gapStarts)
+        idx = gapStarts(i):gapEnds(i);
+        plot(t(idx), xFilled(idx), "-", "Color", colorValue, "LineWidth", lineWidth);
+    end
 end

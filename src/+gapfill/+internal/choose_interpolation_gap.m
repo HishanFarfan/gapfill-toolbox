@@ -35,8 +35,12 @@ function maxGapLength = choose_interpolation_gap(gapLengths, seriesClass, profil
             gapScale = max(gapScale, 1.20);
         case 'seasonal'
             gapScale = min(gapScale, 0.90);
+        case {'persistent', 'antipersistent'}
+            gapScale = min(gapScale, 0.40);
         case 'bursty'
             gapScale = min(gapScale, 0.70);
+        case 'regime_switching'
+            gapScale = min(gapScale, 0.35);
         otherwise
     end
 
@@ -50,11 +54,14 @@ function maxGapLength = choose_interpolation_gap(gapLengths, seriesClass, profil
     end
 
     if isfield(profileReport, 'classification') && isfield(profileReport.classification, 'flags')
-        if profileReport.classification.flags.has_regime_changes
-            maxGapLength = min(maxGapLength, max(4, floor(0.65 * maxGapLength)));
+        if strcmp(seriesClass, 'regime_switching') && profileReport.classification.flags.has_regime_changes
+            maxGapLength = min(maxGapLength, max(2, floor(0.55 * maxGapLength)));
         end
-        if profileReport.classification.flags.is_multiscale
-            maxGapLength = min(maxGapLength, max(4, floor(0.85 * maxGapLength)));
+        if strcmp(seriesClass, 'regime_switching') && profileReport.classification.flags.is_multiscale
+            maxGapLength = min(maxGapLength, max(2, floor(0.75 * maxGapLength)));
+        end
+        if strcmp(seriesClass, 'persistent')
+            maxGapLength = min(maxGapLength, 3);
         end
     end
 

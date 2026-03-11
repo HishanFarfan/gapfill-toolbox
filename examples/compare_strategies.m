@@ -22,6 +22,7 @@ function seasonalCase()
     fprintf("\n=== Seasonal Case ===\n");
     fprintf("Class: %s\n", report.strategy.series_class);
     fprintf("Interpolation method: %s\n", report.strategy.interpolation_method);
+    fprintf("Context-match fills: %d\n", report.context_match.n_filled_gaps);
     fprintf("Seasonal backend fills: %d\n", report.seasonal.n_filled_gaps);
     fprintf("Rolling AR fills: %d\n", report.rolling_ar.n_filled_gaps);
     fprintf("Local AR fills: %d\n", report.ar.n_filled_gaps);
@@ -32,10 +33,11 @@ function seasonalCase()
     nexttile
     plot(t, x, "Color", [0.75 0.75 0.75], "LineWidth", 1);
     hold on
-    plot(t, xMissing, "k.");
-    plot(t, xFilled, "r-", "LineWidth", 1.2);
+    highlightGapRegions(t, x, isnan(xMissing), [1.0 0.85 0.85], 0.35);
+    plot(t(~isnan(xMissing)), xMissing(~isnan(xMissing)), "k.", "MarkerSize", 5);
+    plotFilledSegments(t, xFilled, isnan(xMissing), [0.85 0.2 0.2], 1.8);
     title(sprintf("Seasonal case | class=%s", report.strategy.series_class));
-    legend("Original", "Observed", "Filled", "Location", "best");
+    legend("Original", "Observed", "Filled only", "Location", "best");
     xlabel("Index");
     ylabel("Value");
 
@@ -62,6 +64,7 @@ function regimeSwitchingCase()
     fprintf("\n=== Regime-Switching Case ===\n");
     fprintf("Class: %s\n", report.strategy.series_class);
     fprintf("Interpolation method: %s\n", report.strategy.interpolation_method);
+    fprintf("Context-match fills: %d\n", report.context_match.n_filled_gaps);
     fprintf("Seasonal backend fills: %d\n", report.seasonal.n_filled_gaps);
     fprintf("Rolling AR fills: %d\n", report.rolling_ar.n_filled_gaps);
     fprintf("Local AR fills: %d\n", report.ar.n_filled_gaps);
@@ -72,10 +75,11 @@ function regimeSwitchingCase()
     nexttile
     plot(t, x, "Color", [0.75 0.75 0.75], "LineWidth", 1);
     hold on
-    plot(t, xMissing, "k.");
-    plot(t, xFilled, "b-", "LineWidth", 1.2);
+    highlightGapRegions(t, x, isnan(xMissing), [1.0 0.85 0.85], 0.35);
+    plot(t(~isnan(xMissing)), xMissing(~isnan(xMissing)), "k.", "MarkerSize", 5);
+    plotFilledSegments(t, xFilled, isnan(xMissing), [0.85 0.2 0.2], 1.8);
     title(sprintf("Regime-switching case | class=%s", report.strategy.series_class));
-    legend("Original", "Observed", "Filled", "Location", "best");
+    legend("Original", "Observed", "Filled only", "Location", "best");
     xlabel("Index");
     ylabel("Value");
 
@@ -84,4 +88,24 @@ function regimeSwitchingCase()
     title("Gap lengths");
     xlabel("Gap id");
     ylabel("Length");
+end
+
+function highlightGapRegions(t, yReference, fillMask, colorValue, faceAlpha)
+    [gapStarts, gapEnds, ~] = gapfill.internal.find_gaps(fillMask);
+    yMin = min(yReference) - 0.05 * range(yReference);
+    yMax = max(yReference) + 0.05 * range(yReference);
+    for i = 1:numel(gapStarts)
+        x0 = t(gapStarts(i));
+        x1 = t(gapEnds(i));
+        patch([x0 x1 x1 x0], [yMin yMin yMax yMax], colorValue, ...
+            "FaceAlpha", faceAlpha, "EdgeColor", "none");
+    end
+end
+
+function plotFilledSegments(t, xFilled, fillMask, colorValue, lineWidth)
+    [gapStarts, gapEnds, ~] = gapfill.internal.find_gaps(fillMask);
+    for i = 1:numel(gapStarts)
+        idx = gapStarts(i):gapEnds(i);
+        plot(t(idx), xFilled(idx), "-", "Color", colorValue, "LineWidth", lineWidth);
+    end
 end

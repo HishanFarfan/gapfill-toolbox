@@ -3,7 +3,7 @@ function evaluation = evaluate_methods(data, varargin)
 
     parser = inputParser;
     parser.addParameter("Time", [], @(x) isempty(x) || isvector(x));
-    parser.addParameter("Methods", {"linear", "pchip", "makima", "spline"});
+    parser.addParameter("Methods", {"linear", "pchip", "makima"});
     parser.addParameter("NumReplicates", 6, @(x) isnumeric(x) && isscalar(x) && x >= 1);
     parser.addParameter("HoldoutFraction", 0.2, @(x) isnumeric(x) && isscalar(x) && x > 0 && x < 1);
     parser.addParameter("MinSegmentLength", 8, @(x) isnumeric(x) && isscalar(x) && x >= 3);
@@ -56,6 +56,12 @@ function evaluation = evaluate_methods(data, varargin)
     spectralMean = NaN(nMethods, 1);
     trendMean = NaN(nMethods, 1);
     seasonalMean = NaN(nMethods, 1);
+    shapeMean = NaN(nMethods, 1);
+    derivativeMean = NaN(nMethods, 1);
+    curvatureMean = NaN(nMethods, 1);
+    tvMean = NaN(nMethods, 1);
+    turningPointMean = NaN(nMethods, 1);
+    visualMean = NaN(nMethods, 1);
     successRate = NaN(nMethods, 1);
 
     for iMethod = 1:nMethods
@@ -66,6 +72,12 @@ function evaluation = evaluate_methods(data, varargin)
         spectralRuns = NaN(opts.NumReplicates, 1);
         trendRuns = NaN(opts.NumReplicates, 1);
         seasonalRuns = NaN(opts.NumReplicates, 1);
+        shapeRuns = NaN(opts.NumReplicates, 1);
+        derivativeRuns = NaN(opts.NumReplicates, 1);
+        curvatureRuns = NaN(opts.NumReplicates, 1);
+        tvRuns = NaN(opts.NumReplicates, 1);
+        turningPointRuns = NaN(opts.NumReplicates, 1);
+        visualRuns = NaN(opts.NumReplicates, 1);
         successRuns = false(opts.NumReplicates, 1);
 
         for iRep = 1:opts.NumReplicates
@@ -86,6 +98,14 @@ function evaluation = evaluate_methods(data, varargin)
             delta = xInterp(holdout) - x(holdout);
             rmseRuns(iRep) = sqrt(mean(delta .^ 2));
             biasRuns(iRep) = abs(mean(delta));
+
+            visualMetrics = gapfill.internal.gap_visual_metrics(x(holdout), xInterp(holdout));
+            shapeRuns(iRep) = visualMetrics.shape_distance;
+            derivativeRuns(iRep) = visualMetrics.derivative_distance;
+            curvatureRuns(iRep) = visualMetrics.curvature_distance;
+            tvRuns(iRep) = visualMetrics.tv_distance;
+            turningPointRuns(iRep) = visualMetrics.turning_point_distance;
+            visualRuns(iRep) = visualMetrics.visual_distance;
 
             xInterpValid = xInterp(valid);
             interpAcf = gapfill.internal.autocorrelation(xInterpValid, opts.MaxLag);
@@ -115,6 +135,12 @@ function evaluation = evaluate_methods(data, varargin)
         spectralMean(iMethod) = gapfill.internal.safe_stat(spectralRuns, "mean");
         trendMean(iMethod) = gapfill.internal.safe_stat(trendRuns, "mean");
         seasonalMean(iMethod) = gapfill.internal.safe_stat(seasonalRuns, "mean");
+        shapeMean(iMethod) = gapfill.internal.safe_stat(shapeRuns, "mean");
+        derivativeMean(iMethod) = gapfill.internal.safe_stat(derivativeRuns, "mean");
+        curvatureMean(iMethod) = gapfill.internal.safe_stat(curvatureRuns, "mean");
+        tvMean(iMethod) = gapfill.internal.safe_stat(tvRuns, "mean");
+        turningPointMean(iMethod) = gapfill.internal.safe_stat(turningPointRuns, "mean");
+        visualMean(iMethod) = gapfill.internal.safe_stat(visualRuns, "mean");
         successRate(iMethod) = mean(successRuns);
     end
 
@@ -124,17 +150,21 @@ function evaluation = evaluate_methods(data, varargin)
         backend.weights(4) * gapfill.internal.normalize_minmax(roughnessMean) + ...
         backend.weights(5) * gapfill.internal.normalize_minmax(spectralMean) + ...
         backend.weights(6) * gapfill.internal.normalize_minmax(trendMean) + ...
-        backend.weights(7) * gapfill.internal.normalize_minmax(seasonalMean);
+        backend.weights(7) * gapfill.internal.normalize_minmax(seasonalMean) + ...
+        backend.weights(8) * gapfill.internal.normalize_minmax(visualMean);
 
     penalty = 1 - successRate;
     score = score + 0.25 * penalty;
 
     methodColumn = methods(:);
     resultsTable = table(methodColumn, rmseMean, biasMean, acfMean, roughnessMean, ...
-        spectralMean, trendMean, seasonalMean, successRate, score, ...
+        spectralMean, trendMean, seasonalMean, shapeMean, derivativeMean, ...
+        curvatureMean, tvMean, turningPointMean, visualMean, successRate, score, ...
         'VariableNames', {'Method', 'RMSE', 'Bias', 'ACFDistance', ...
         'RoughnessDistance', 'SpectralDistance', 'TrendDistance', ...
-        'SeasonalityDistance', 'SuccessRate', 'Score'});
+        'SeasonalityDistance', 'ShapeDistance', 'DerivativeDistance', ...
+        'CurvatureDistance', 'TVDistance', 'TurningPointDistance', ...
+        'VisualDistance', 'SuccessRate', 'Score'});
     resultsTable = sortrows(resultsTable, 'Score', 'ascend');
 
     evaluation = struct;
